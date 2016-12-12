@@ -233,3 +233,22 @@ const Type *any_cast(const any_t<Traits...> *value) {
 
   return nullptr;
 }
+
+template <typename Type, typename... Traits>
+Type &any_cast(any_t<Traits...> &value) {
+  auto ptr = any_cast<Type> (&value);
+  if (ptr)
+    return *ptr;
+
+  throw std::bad_cast {}; // technically should be bad_any_cast
+}
+
+template <typename Type, typename... Traits>
+const Type &any_cast(const any_t<Traits...> &value) {
+  auto ptr = any_cast<Type> (&value);
+  if (ptr)
+    return *ptr;
+
+  throw std::bad_cast {}; // technically should be bad_any_cast
+}
+

@@ -23,4 +23,14 @@ TEST(any, all)
   EXPECT_TRUE(v.type() == typeid (int));
   EXPECT_EQ(123, *any_cast<int> (&v));
   EXPECT_EQ(nullptr, any_cast<double> (&v));
+  EXPECT_EQ(123, any_cast<int> (v));
+  try {
+    any_cast<double> (v);
+    FAIL() << "Expected std::bad_cast";
+  }
+  catch (std::bad_cast const &) {
+    }
+  catch (...) {
+      FAIL() << "Expected std::bad_cast";
+    }
 }
