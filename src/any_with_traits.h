@@ -50,8 +50,8 @@ struct trait_impl<any_trait::destructible> {
   struct any_base {
     ~any_base() {
       auto real_this = static_cast<RealType *> (this);
-      if (real_this->f_table)
-        static_cast<func_impl *> (real_this->f_table)->call_destroy(real_this->data);
+      if (real_this->d.type_data.f_table)
+        static_cast<func_impl *> (real_this->d.type_data.f_table)->call_destroy(real_this->d.data);
     }
   };
 };
@@ -76,7 +76,7 @@ struct trait_impl<any_trait::callable<Ret (ArgTypes...)>> {
   struct any_base {
     Ret operator ()(ArgTypes&&... args) const {
       auto real_this = static_cast<const RealType *> (this);
-      return (real_this->f_table)->call_call(real_this->data, std::forward<ArgTypes>(args)...);
+      return (real_this->d.type_data.f_table)->call_call(real_this->d.data, std::forward<ArgTypes>(args)...);
     }
   };
 };
@@ -101,10 +101,10 @@ struct trait_impl<any_trait::copiable> {
   struct any_base {
     void clone(const RealType &other) {
       auto real_this = static_cast<RealType *> (this);
-      if (real_this->f_table)
-        static_cast<trait_impl<any_trait::destructible>::func_impl *> (real_this->f_table)->call_destroy(real_this->data); // Crude way to call destructor
-      real_this->f_table = other.f_table;
-      real_this->data = static_cast<func_impl *> (real_this->f_table)->call_copy(&other.data);
+      if (real_this->d.type_data.f_table)
+        static_cast<trait_impl<any_trait::destructible>::func_impl *> (real_this->d.type_data.f_table)->call_destroy(real_this->d.data); // Crude way to call destructor
+      real_this->d.type_data = other.d.type_data;
+      real_this->d.data = static_cast<func_impl *> (real_this->d.type_data.f_table)->call_copy(&other.d.data);
     }
   };
 };
@@ -127,9 +127,8 @@ struct trait_impl<any_trait::movable> {
   struct any_base {
     void move_from(RealType &&other) {
       auto real_this = static_cast<RealType *> (this);
-      real_this->f_table = other.f_table;
-      real_this->data = other.data;
-      other.f_table = nullptr;
+      real_this->d = other.d;
+      other.d.type_data.clear ();
     }
   };
 };
@@ -175,22 +174,62 @@ public:
   any_t() {}
   // TODO: check that type isn't any itself
   template <typename Type, std::enable_if_t<!std::is_same<std::decay_t<Type>, self>::value, int> = 0>
-  any_t (Type &&value) {
+  any_t(Type &&value) {
     using decayed_type = std::decay_t<Type>;
-    f_table = &detail::func_table_instance<decayed_type, Traits...>::value.value;
-    data = new decayed_type (std::forward<Type>(value));
+    d.type_data.f_table = &detail::func_table_instance<decayed_type, Traits...>::value.value;
+    d.data = new decayed_type(std::forward<Type>(value));
+    d.type_data.t_info = &typeid (decayed_type);
   }
 
   any_t(const self &other) { static_assert (is_copiable, "class copy construction is prohibited due to lack of copiable trait");  this->clone(other); }
   self &operator=(const self &other) { static_assert (is_copiable, "class copy assignment is prohibited due to lack of copiable trait"); this->clone(other); return *this; }
-  any_t(self &&other) { static_assert (is_movable, "class move construction is prohibited due to lack of movable trait");  this->move_from(std::move (other)); }
-  self &operator=(self &&other) { static_assert (is_movable, "class move assignment is prohibited due to lack of movable trait"); this->move_from(std::move (other)); return *this; }
+  any_t(self &&other) { static_assert (is_movable, "class move construction is prohibited due to lack of movable trait");  this->move_from(std::move(other)); }
+  self &operator=(self &&other) { static_assert (is_movable, "class move assignment is prohibited due to lack of movable trait"); this->move_from(std::move(other)); return *this; }
+  const type_info &type() { return *d.type_data.t_info; }
 
 private:
-  detail::func_table<Traits...> *f_table = nullptr;
-  void *data = nullptr; // for now only large
+  template <typename Type>
+  Type *cast() {
+    if (*d.type_data.t_info == typeid (std::remove_const_t<Type>))
+      return static_cast<Type *> (d.data);
 
+    return nullptr;
+  }
+
+private:
+  struct {
+    struct
+    {
+      detail::func_table<Traits...> *f_table = nullptr;
+      const std::type_info *t_info = nullptr;
+      void clear () {
+        f_table = nullptr;
+        t_info = nullptr;
+      }
+    } type_data;
+    void *data = nullptr; // for now only large
+  } d;
 
   template <class T>
   friend struct trait_impl;
+  template <typename Type, typename... Traits>
+  friend Type *any_cast(any_t<Traits...> *value);
+  template <typename Type, typename... Traits>
+  friend const Type *any_cast(const any_t<Traits...> *value);
 };
+
+template <typename Type, typename... Traits>
+Type *any_cast (any_t<Traits...> *value) {
+  if (value)
+   return value->cast<Type> ();
+
+  return nullptr;
+}
+
+template <typename Type, typename... Traits>
+const Type *any_cast(const any_t<Traits...> *value) {
+  if (value)
+    return value->cast<Type>();
+
+  return nullptr;
+}
