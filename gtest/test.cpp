@@ -66,4 +66,10 @@ TEST(any, all)
     auto v3 = std::move(v);
     EXPECT_EQ(initial_value, any_cast<huge_type> (v3));
   }
+  {
+    any_t <any_trait::destructible, any_trait::callable<int (int, int)>> v (std::plus<int> {});
+    EXPECT_EQ (17, v (12, 5));
+    v = std::minus<int> {};
+    EXPECT_EQ(7, v(12, 5));
+  }
 }

@@ -250,12 +250,18 @@ public:
   // TODO: check that type isn't any itself
   template <typename Type, std::enable_if_t<!std::is_same<std::decay_t<Type>, self>::value, int> = 0>
   any_t(Type &&value) {
+    *this = std::forward<Type>(value);
+  }
+
+  template <typename Type, std::enable_if_t<!std::is_same<std::decay_t<Type>, self>::value, int> = 0>
+  self &operator=(Type &&value) {
     using decayed_type = std::decay_t<Type>;
     d.type_data.t_info = &typeid (decayed_type);
     d.type_data.f_table = &detail::func_table_instance<decayed_type, Traits...>::value.value;
     using t = detail::get_any_stored_value_type<decayed_type>;
     d.type_data.stored_value_type = t::value;
-    dispatch_and_fill(t (), std::forward<Type> (value));
+    dispatch_and_fill(t(), std::forward<Type>(value));
+    return *this;
   }
 
   template <typename Type>
@@ -292,6 +298,10 @@ private:
     case detail::any_stored_value_type::small: return &d.small_data;
     }
     return nullptr;
+  }
+
+  const void *data_ptr() const {
+    return (const_cast<self *> (this))->data_ptr();
   }
 
 private:
