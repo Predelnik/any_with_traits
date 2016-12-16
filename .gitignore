@@ -4,6 +4,8 @@
 *.suo
 *.filters
 *.sln
+CMakeSettings.json
 
+.vs/
 bin*/**/*
 build*/**/*

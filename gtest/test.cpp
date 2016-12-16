@@ -5,27 +5,6 @@
 #include <memory>
 #include <functional>
 
-struct C {
-  char vv[10000];
-  int x = -123;
-  C (int v) : x(v) {}
-  ~C () {
-  std::cout << "destruction\n";
-}
-  C &operator= (const C &) { return *this; }
-  C &operator= (C &&) { return *this; }
-  bool operator== (const C &other) const { return x == other.x;  }
-  bool operator!= (const C &other) const { return x != other.x; }
-
-C (const C &other) {
-  std::cout << "copy\n";
-  x = other.x;
-}
-C(C &&) {
-  std::cout << "move\n";
-}
-};
-
 TEST(any, all)
 {
   {
@@ -71,5 +50,17 @@ TEST(any, all)
     EXPECT_EQ (17, v (12, 5));
     v = std::minus<int> {};
     EXPECT_EQ(7, v(12, 5));
+  }
+  {
+    any_t <any_trait::destructible, any_trait::comparable, any_trait::copiable> v(13);
+    auto y = v;
+    EXPECT_EQ(y, v);
+    EXPECT_TRUE(13 == v);
+    EXPECT_TRUE(v == 13);
+    y = std::string ("Hello");
+    EXPECT_EQ(std::string("Hello"), y);
+    EXPECT_NE(13, y);
+    EXPECT_TRUE(13 != y);
+    EXPECT_TRUE(y != 13);
   }
 }

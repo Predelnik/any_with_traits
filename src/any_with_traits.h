@@ -18,6 +18,12 @@ namespace tmp
   template<class Needle, class... Haystack>
   struct one_of : static_or<std::is_same<Needle, Haystack>::value...> {};
 }
+template <typename T>
+struct forbid_implicit_casts
+{
+  forbid_implicit_casts(T value_arg) : value(value_arg) {}
+  T value;
+};
 
 namespace any_trait {
   struct copiable {};
@@ -25,6 +31,7 @@ namespace any_trait {
   template <typename Signature>
   struct callable {};
   struct destructible {};
+  struct comparable {};
 };
 
 namespace detail {
@@ -80,6 +87,54 @@ struct trait_impl<any_trait::destructible> {
       auto real_this = static_cast<RealType *> (this);
       if (real_this->d.type_data.f_table)
         static_cast<func_impl *> (real_this->d.type_data.f_table)->call_dtor(real_this->data_ptr());
+    }
+  };
+};
+
+template <>
+struct trait_impl<any_trait::comparable> {
+  struct func_impl
+  {
+    using equal_to_signature = bool(*)(const void *, const void *);
+    template <typename T>
+    static bool equal_to(const void *first, const void *second) {
+      return *static_cast<const T *> (first) == *static_cast<const T *> (second);
+    }
+
+    equal_to_signature call_equal_to;
+
+    template <typename T>
+    void store() {
+      call_equal_to = &equal_to<T>;
+    }
+  };
+
+  template <class RealType>
+  struct any_base {
+
+    bool operator==(const RealType &other) const {
+      auto real_this = static_cast<const RealType *> (this);
+      return real_this->type() == other.type() && static_cast<func_impl *> (real_this->d.type_data.f_table)->call_equal_to(real_this->data_ptr(), other.data_ptr ());
+    }
+
+    friend bool operator==(const RealType &first, const RealType & second) {
+      return first.operator==(second);
+    }
+
+    friend bool operator==(const RealType &first, forbid_implicit_casts<const RealType &> second) {
+      return second.value.operator== (first);
+    }
+
+    bool operator!=(const RealType &other) const {
+      return !(*this == other);
+    }
+
+    friend bool operator!=(const RealType &first, forbid_implicit_casts<const RealType &> second) {
+      return second.value.operator!= (first);
+    }
+
+    friend bool operator!=(const RealType &first, const RealType & second) {
+      return first.operator!=(second);
     }
   };
 };
@@ -281,7 +336,7 @@ public:
   self &operator=(const self &other) { static_assert (is_copiable, "class copy assignment is prohibited due to lack of copiable trait"); this->clone(other); return *this; }
   any_t(self &&other) { static_assert (is_movable, "class move construction is prohibited due to lack of movable trait");  this->move_from(std::move(other)); }
   self &operator=(self &&other) { static_assert (is_movable, "class move assignment is prohibited due to lack of movable trait"); this->move_from(std::move(other)); return *this; }
-  const type_info &type() { return *d.type_data.t_info; }
+  const type_info &type() const { return *d.type_data.t_info; }
 
 private:
   template <typename Type>
