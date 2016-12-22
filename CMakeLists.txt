@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.5)
 add_subdirectory ("gtest")
+add_subdirectory ("src")
 
 project (any_with_traits)
 
