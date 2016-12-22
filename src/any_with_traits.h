@@ -98,7 +98,7 @@ template <class RealType>
 struct trait_impl<any_trait::destructible>::any_base {
   ~any_base() {
     auto real_this = static_cast<RealType *> (this);
-    real_this->template visit_ftable<func_impl>([real_this](auto f_table) { if (f_table) f_table->call_dtor(real_this->data_ptr());  });
+    real_this->template visit_ftable<func_impl>([&](auto f_table) { if (f_table) f_table->call_dtor(real_this->data_ptr());  });
   }
 };
 
@@ -126,7 +126,7 @@ struct trait_impl<any_trait::comparable> {
     bool operator==(const RealType &other) const {
       auto real_this = static_cast<const RealType *> (this);
       // TODO: check equality of empty anys
-      return real_this->type() == other.type() && real_this->template visit_ftable<func_impl>([real_this, &other](auto f_table) { return f_table->call_equal_to (real_this->data_ptr(), other.data_ptr ());  });
+      return real_this->type() == other.type() && real_this->template visit_ftable<func_impl>([&](auto f_table) { return f_table->call_equal_to (real_this->data_ptr(), other.data_ptr ());  });
     }
 
     friend bool operator==(const RealType &first, const RealType & second) {
@@ -173,7 +173,7 @@ struct trait_impl<any_trait::callable<Ret (ArgTypes...)>> {
   struct any_base {
     Ret operator ()(ArgTypes&&... args) const {
       auto real_this = static_cast<const RealType *> (this);
-      return real_this->template visit_ftable<func_impl>([real_this, &args...](auto f_table) { return f_table->call_call(real_this->data_ptr(), std::forward<ArgTypes>(args)...);  });
+      return real_this->template visit_ftable<func_impl>([&](auto f_table) { return f_table->call_call(real_this->data_ptr(), std::forward<ArgTypes>(args)...);  });
     }
   };
 };
@@ -224,8 +224,8 @@ struct trait_impl<any_trait::copiable>::any_base {
     real_this->~RealType();
     real_this->d.type_data = other.d.type_data;
     real_this->template visit_ftable<func_impl>(sftb::overload(
-      [real_this, &other](const func_impl<detail::any_stored_value_type::small> *f_table) { f_table->call_copy(real_this->d.small_data, other.d.small_data); },
-      [real_this, &other](const func_impl<detail::any_stored_value_type::large> *f_table) { real_this->d.data = f_table->call_clone(other.d.data); }));
+      [&](const func_impl<detail::any_stored_value_type::small> *f_table) { f_table->call_copy(real_this->d.small_data, other.d.small_data); },
+      [&](const func_impl<detail::any_stored_value_type::large> *f_table) { real_this->d.data = f_table->call_clone(other.d.data); }));
   }
 };
 
@@ -267,8 +267,8 @@ struct trait_impl<any_trait::movable>::any_base {
     real_this->~RealType();
     real_this->d.type_data = other.d.type_data;
     real_this->template visit_ftable<func_impl>(sftb::overload(
-      [real_this, &other](const func_impl<detail::any_stored_value_type::small> *f_table) { f_table->call_move(real_this->data_ptr(), other.data_ptr()); },
-      [real_this, &other](const func_impl<detail::any_stored_value_type::large> *) { real_this->d.data = other.d.data; other.d.type_data.clear(); }));
+      [&](const func_impl<detail::any_stored_value_type::small> *f_table) { f_table->call_move(real_this->data_ptr(), other.data_ptr()); },
+      [&](const func_impl<detail::any_stored_value_type::large> *) { real_this->d.data = other.d.data; other.d.type_data.clear(); }));
   }
 };
 
