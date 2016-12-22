@@ -2,6 +2,7 @@
 #include "any_with_traits.h"
 
 #include <array>
+#include <map>
 #include <memory>
 #include <functional>
 
@@ -61,5 +62,21 @@ TEST(any, all)
     EXPECT_NE(13, y);
     EXPECT_TRUE(13 != y);
     EXPECT_TRUE(y != 13);
+  }
+  {
+    using any = any_t<any_trait::destructible, any_trait::orderable, any_trait::movable, any_trait::copiable> ;
+    std::vector<any> v;
+    v.emplace_back(25);
+    v.emplace_back(-15);
+    v.emplace_back(3);
+    std::sort(v.begin(), v.end());
+    EXPECT_EQ(25, any_cast<int> (v.back()));
+    EXPECT_EQ(-15, any_cast<int> (v.front()));
+    std::map<any, int> m;
+    m[13] = 27;
+    m[std::string ("acdcd")] = 34;
+    m[std::vector<int> {1, 5, 3}] = 666;
+    EXPECT_EQ(3u, m.size());
+    EXPECT_EQ(666, m[std::vector<int> ({1, 5, 3})]);
   }
 }

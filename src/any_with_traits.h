@@ -1,7 +1,9 @@
 #pragma once
 
 #include "overload.h"
+
 #include <type_traits>
+#include <typeindex>
 
 /* Template machinery - TODO Separate in a file */
 #define STATIC_FOR_EACH(...) std::initializer_list<int > {(__VA_ARGS__, 0)...}
@@ -36,6 +38,7 @@ namespace any_trait {
   struct callable {};
   struct destructible {};
   struct comparable {};
+  struct orderable {};
 };
 
 namespace detail {
@@ -126,7 +129,8 @@ struct trait_impl<any_trait::comparable> {
     bool operator==(const RealType &other) const {
       auto real_this = static_cast<const RealType *> (this);
       // TODO: check equality of empty anys
-      return real_this->type() == other.type() && real_this->template visit_ftable<func_impl>([&](auto f_table) { return f_table->call_equal_to (real_this->data_ptr(), other.data_ptr ());  });
+      return real_this->type() == other.type() && real_this->template visit_ftable<func_impl>([&](auto f_table) 
+        { return f_table->call_equal_to (real_this->data_ptr(), other.data_ptr ());  });
     }
 
     friend bool operator==(const RealType &first, const RealType & second) {
@@ -147,6 +151,63 @@ struct trait_impl<any_trait::comparable> {
 
     friend bool operator!=(const RealType &first, const RealType & second) {
       return first.operator!=(second);
+    }
+  };
+};
+
+template <>
+struct trait_impl<any_trait::orderable> {
+  template <detail::any_stored_value_type>
+  struct func_impl
+  {
+    using less_than_signature = bool(*)(const void *, const void *);
+    template <typename T>
+    static bool less_than(const void *first, const void *second) {
+      return *static_cast<const T *> (first) < *static_cast<const T *> (second);
+    }
+
+    less_than_signature call_less_than = nullptr;
+
+    template <typename T>
+    constexpr func_impl(tmp::type_t<T>) : call_less_than(&less_than<T>) {}
+  };
+
+  template <class RealType>
+  struct any_base {
+
+    bool operator<(const RealType &other) const {
+      auto real_this = static_cast<const RealType *> (this);
+      if (real_this->type() != other.type())
+        return std::type_index(real_this->type()) < std::type_index(other.type());
+
+      return real_this->template visit_ftable<func_impl>([&](auto f_table)
+        { return f_table->call_less_than(real_this->data_ptr(), other.data_ptr());  });
+    }
+
+    friend bool operator<(const RealType &first, const RealType & second) { return first.operator<(second); }
+    friend bool operator<(const RealType &first, forbid_implicit_casts<const RealType &> second) {
+      return first.operator<(second);
+    }
+    bool operator>(const RealType &other) const { return other < *this; }
+    friend bool operator>(const RealType &first, const RealType & second) {
+      return first.operator>(second);
+    }
+    friend bool operator>(const RealType &first, forbid_implicit_casts<const RealType &> second) {
+      return first.operator>(second);
+    }
+    bool operator>=(const RealType &other) const { return !(*this < other); }
+    friend bool operator>=(const RealType &first, const RealType & second) {
+      return first.operator>=(second);
+    }
+    friend bool operator>=(const RealType &first, forbid_implicit_casts<const RealType &> second) {
+      return first.operator>=(second);
+    }
+    bool operator<=(const RealType &other) const { return !(*this > other); }
+    friend bool operator<=(const RealType &first, const RealType & second) {
+      return first.operator<=(second);
+    }
+    friend bool operator<=(const RealType &first, forbid_implicit_casts<const RealType &> second) {
+      return first.operator<=(second);
     }
   };
 };
@@ -381,7 +442,7 @@ private:
         const detail::func_table<detail::any_stored_value_type::large, Traits...> *large_f_table;
       };
       const std::type_info *t_info = nullptr;
-      detail::any_stored_value_type stored_value_type;
+      detail::any_stored_value_type stored_value_type = detail::any_stored_value_type::large;
       void clear () {
         small_f_table = nullptr;
         t_info = nullptr;
