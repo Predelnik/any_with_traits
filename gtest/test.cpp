@@ -23,7 +23,6 @@ TEST(any, all)
       FAIL() << "Expected std::bad_cast";
     }
   }
-
   {
     any_t < any_trait::destructible, any_trait::copiable, any_trait::movable> v(123);
     EXPECT_EQ(123, any_cast<int> (v));
