@@ -5,6 +5,7 @@
 #include <map>
 #include <memory>
 #include <functional>
+#include <unordered_set>
 
 TEST(any, all)
 {
@@ -78,5 +79,15 @@ TEST(any, all)
     m[std::vector<int> {1, 5, 3}] = 666;
     EXPECT_EQ(3u, m.size());
     EXPECT_EQ(666, m[std::vector<int> ({1, 5, 3})]);
+  }
+  {
+    using any = any_t<any_trait::destructible, any_trait::movable, any_trait::copiable, any_trait::hashable, any_trait::comparable>;
+    std::unordered_set<any> vv;
+    vv.insert(17);
+    vv.insert(13);
+    vv.insert(19);
+    vv.insert(std::string("13"));
+    EXPECT_EQ(1, vv.count (std::string ("13")));
+    EXPECT_EQ(0, vv.count(std::string("27")));
   }
 }

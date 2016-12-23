@@ -22,6 +22,15 @@ namespace tmp
   struct one_of : static_or<std::is_same<Needle, Haystack>::value...> {};
   template <typename T>
   struct type_t { using type = T; };
+  template <typename T1, typename T2>
+  using first_type = T1;
+}
+
+template <class T>
+inline void hash_combine(std::size_t& seed, const T& v)
+{
+  std::hash<T> hasher;
+  seed ^= hasher(v) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
 }
 
 template <typename T>
@@ -39,6 +48,7 @@ namespace any_trait {
   struct destructible {};
   struct comparable {};
   struct orderable {};
+  struct hashable {};
 };
 
 namespace detail {
@@ -103,6 +113,36 @@ struct trait_impl<any_trait::destructible>::any_base {
     auto real_this = static_cast<RealType *> (this);
     real_this->template visit_ftable<func_impl>([&](auto f_table) { if (f_table) f_table->call_dtor(real_this->data_ptr());  });
   }
+};
+
+template <>
+struct trait_impl<any_trait::hashable> {
+  template <detail::any_stored_value_type>
+  struct func_impl
+  {
+    using hash_signature = std::size_t(*)(const void *);
+    template <typename T>
+    static std::size_t hash_func(const void *value) {
+      return std::hash<T> ()(*static_cast<const T *> (value));
+    }
+
+    hash_signature call_hash = nullptr;
+
+    template <typename T>
+    constexpr func_impl(tmp::type_t<T>) : call_hash(&hash_func<T>)
+    {}
+  };
+
+  template <class RealType>
+  struct any_base {
+    std::size_t hash() const
+    {
+      auto real_this = static_cast<const RealType *> (this);
+      std::size_t res = real_this->template visit_ftable<func_impl>([&](auto f_table) { return f_table->call_hash(real_this->data_ptr());  }); // TODO: check empty any
+      hash_combine(res, std::type_index(*real_this->d.type_data.t_info)); // adding type_info hash to original type hash
+      return res;
+    };
+  };
 };
 
 template <>
@@ -463,6 +503,18 @@ private:
   template <typename Type, typename... Traits>
   friend const Type *any_cast(const any_t<Traits...> *value);
 };
+
+namespace std
+{
+  template <class... Traits>
+  struct hash<tmp::first_type<any_t<Traits...>, decltype (std::declval<any_t<Traits...>>().hash())>>
+  {
+  private:
+    using wrapped_type = any_t<Traits...>;
+  public:
+    size_t operator ()(const wrapped_type &value) const { return value.hash(); }
+  };
+}
 
 template <typename Type, typename... Traits>
 Type *any_cast (any_t<Traits...> *value) {
