@@ -56,6 +56,8 @@ TEST(any, all)
     EXPECT_EQ(7, v(12, 5));
     any p;
     EXPECT_THROW(p(12, 5), std::bad_function_call);
+    int x = 12, y = 5;
+    EXPECT_EQ(x - y, v (x, y));
   }
   {
     using any = awt::any <any_trait::comparable, any_trait::copiable>;
