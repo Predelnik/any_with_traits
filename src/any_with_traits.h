@@ -1,7 +1,6 @@
 #pragma once
 
-#include "overload.h"
-
+#include <functional>
 #include <type_traits>
 #include <typeindex>
 
@@ -50,6 +49,36 @@ namespace awt
       template<class Needle, class... Haystack>
       struct one_of : static_or<std::is_same<Needle, Haystack>::value...> {};
     }
+
+    template <typename... Args> class overload_class;
+
+    template <typename Arg>
+    class overload_class<Arg> : Arg
+    {
+      using self = overload_class<Arg>;
+    public:
+      using Arg::operator ();
+      template <class ActualArg, std::enable_if_t<!std::is_same<std::decay_t<ActualArg>, self>::value, int> = 0>
+      overload_class(const ActualArg &arg) : Arg(arg) {}
+    };
+
+    template <typename Arg0, typename... Args>
+    class overload_class<Arg0, Args...> : Arg0, overload_class<Args...>
+    {
+      using self = overload_class<Arg0, Args...>;
+      using parent_t = overload_class<Args...>;
+
+    public:
+      using Arg0::operator();
+      using parent_t::operator ();
+
+      template <class ActualArg0, class... ActualArgs, std::enable_if_t<!std::is_same<std::decay_t<ActualArg0>, self>::value, int> = 0>
+      overload_class(const ActualArg0 &arg0, const ActualArgs &... args) : Arg0(arg0), parent_t(args...) {}
+    };
+
+    template <typename... Args>
+    auto overload(Args&&... args) -> overload_class<std::decay_t<Args>...> { return { std::forward<Args>(args)... }; }
+
 
     template <typename T>
     struct type_t { using type = T; };
@@ -184,7 +213,7 @@ namespace awt
       if (!real_this->has_value())
         return;
 
-      real_this->visit_ftable(sftb::overload(
+      real_this->visit_ftable(overload(
         [&](const func_impl<any_stored_value_type::small> *f_table) { f_table->call_copy(real_this->d.small_data, other.d.small_data); },
         [&](const func_impl<any_stored_value_type::large> *f_table) { real_this->d.data = f_table->call_clone(other.d.data); }));
     }
@@ -228,7 +257,7 @@ namespace awt
       auto real_this = static_cast<RealType *> (this);
       real_this->~RealType();
       real_this->d.type_data = other.d.type_data;
-      real_this->visit_ftable(sftb::overload(
+      real_this->visit_ftable(overload(
         [&](const func_impl<any_stored_value_type::small> *f_table) { f_table->call_move(real_this->data_ptr(), other.data_ptr()); },
         [&](const func_impl<any_stored_value_type::large> *) { real_this->d.data = other.d.data; }));
       other.d.type_data.clear();
