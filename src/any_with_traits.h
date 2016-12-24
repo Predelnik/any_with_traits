@@ -39,14 +39,14 @@ struct forbid_implicit_casts
 };
 
 namespace any_trait {
+  struct destructible {}; // TODO: enable by default
   struct copiable {};
   struct movable {};
-  template <typename Signature>
-  struct callable {};
-  struct destructible {};
   struct comparable {};
   struct orderable {};
   struct hashable {};
+  template <typename Signature>
+  struct callable {};
 };
 
 namespace detail {
@@ -63,8 +63,9 @@ namespace detail {
 }
 
 template <class Trait>
-struct trait_impl { static_assert (std::is_same<Trait, void>::value, "Trait functions undefined"); };
+struct trait_impl { static_assert (std::is_same<Trait, void>::value, "Trait is not implemented"); };
 
+/* BEGIN any_trait::destructible implementation */
 template <>
 struct trait_impl<any_trait::destructible> {
   template <detail::any_stored_value_type>
@@ -86,7 +87,7 @@ struct trait_impl<any_trait::destructible>::func_impl<detail::any_stored_value_t
   }
 
   template <typename T>
-  constexpr func_impl(tmp::type_t<T>) : call_dtor (&placement_dtor<T>) {
+  constexpr func_impl(tmp::type_t<T>) : call_dtor(&placement_dtor<T>) {
   }
 };
 
@@ -101,7 +102,7 @@ struct trait_impl<any_trait::destructible>::func_impl<detail::any_stored_value_t
   }
 
   template <typename T>
-  constexpr func_impl(tmp::type_t<T>) : call_dtor (&dtor<T>) {
+  constexpr func_impl(tmp::type_t<T>) : call_dtor(&dtor<T>) {
   }
 };
 
@@ -109,45 +110,116 @@ template <class RealType>
 struct trait_impl<any_trait::destructible>::any_base {
   ~any_base() {
     auto real_this = static_cast<RealType *> (this);
-    if (!real_this->has_value ())
+    if (!real_this->has_value())
       return;
     real_this->template visit_ftable<func_impl>([&](auto f_table) { f_table->call_dtor(real_this->data_ptr());  });
     real_this->d.type_data.t_info = nullptr;
   }
 };
+/* END any_trait::destructible implementation */
 
+/* BEGIN any_trait::copiable implementation */
 template <>
-struct trait_impl<any_trait::hashable> {
+struct trait_impl<any_trait::copiable> {
   template <detail::any_stored_value_type>
-  struct func_impl
-  {
-    using hash_signature = std::size_t(*)(const void *);
-    template <typename T>
-    static std::size_t hash_func(const void *value) {
-      return std::hash<T> ()(*static_cast<const T *> (value));
-    }
-
-    hash_signature call_hash = nullptr;
-
-    template <typename T>
-    constexpr func_impl(tmp::type_t<T>) : call_hash(&hash_func<T>)
-    {}
-  };
+  struct func_impl;
 
   template <class RealType>
-  struct any_base {
-    std::size_t hash() const
-    {
-      auto real_this = static_cast<const RealType *> (this);
-      if (!real_this->has_value())
-        return 7927u; // hash for empty any
-      std::size_t res = real_this->template visit_ftable<func_impl>([&](auto f_table) { return f_table->call_hash(real_this->data_ptr());  });
-      hash_combine(res, std::type_index(*real_this->d.type_data.t_info)); // adding type_info hash to original type hash
-      return res;
-    };
-  };
+  struct any_base;
 };
 
+template <>
+struct trait_impl<any_trait::copiable>::func_impl<detail::any_stored_value_type::large>
+{
+  using clone_signature = void *(*)(const void *);
+  clone_signature call_clone;
+  template <typename T>
+  static void *clone(const void *other) {
+    return ::new T(*static_cast<const T *> (other));
+  }
+
+  template<typename T>
+  constexpr func_impl(tmp::type_t<T>) : call_clone(&clone<T>) {}
+};
+
+template <>
+struct trait_impl<any_trait::copiable>::func_impl<detail::any_stored_value_type::small>
+{
+  using copy_signature = void(*)(void *, const void *);
+  copy_signature call_copy;
+
+  template <typename T>
+  static void copy(void *target, const void *source) {
+    new (target) T(*static_cast<const T *> (source));
+  }
+
+  template <typename T>
+  constexpr func_impl(tmp::type_t<T>) : call_copy(&copy<T>) {
+  }
+};
+
+template <class RealType>
+struct trait_impl<any_trait::copiable>::any_base {
+  void clone(const RealType &other) {
+    auto real_this = static_cast<RealType *> (this);
+    real_this->~RealType();
+    real_this->d.type_data = other.d.type_data;
+    if (!real_this->has_value())
+      return;
+
+    real_this->template visit_ftable<func_impl>(sftb::overload(
+      [&](const func_impl<detail::any_stored_value_type::small> *f_table) { f_table->call_copy(real_this->d.small_data, other.d.small_data); },
+      [&](const func_impl<detail::any_stored_value_type::large> *f_table) { real_this->d.data = f_table->call_clone(other.d.data); }));
+  }
+};
+/* END any_trait::copiable implementation */
+
+/* BEGIN any_trait::movable implementation */
+template <>
+struct trait_impl<any_trait::movable> {
+  template <detail::any_stored_value_type>
+  struct func_impl;
+
+  template <class RealType>
+  struct any_base;
+};
+
+template <>
+struct trait_impl<any_trait::movable>::func_impl <detail::any_stored_value_type::large>
+{
+  template <typename T>
+  constexpr func_impl(tmp::type_t<T>) {}
+};
+
+template <>
+struct trait_impl<any_trait::movable>::func_impl<detail::any_stored_value_type::small>
+{
+
+  using move_signature = void(*)(void *, void *);
+  template <typename T>
+  static void do_move(void *target, void *source) {
+    new(target) T(std::move(*static_cast<T *> (source)));
+  }
+  template <typename T>
+  constexpr func_impl(tmp::type_t<T>) : call_move(&do_move<T>) {
+  }
+  move_signature call_move = nullptr;
+};
+
+template <class RealType>
+struct trait_impl<any_trait::movable>::any_base {
+  void move_from(RealType &&other) {
+    auto real_this = static_cast<RealType *> (this);
+    real_this->~RealType();
+    real_this->d.type_data = other.d.type_data;
+    real_this->template visit_ftable<func_impl>(sftb::overload(
+      [&](const func_impl<detail::any_stored_value_type::small> *f_table) { f_table->call_move(real_this->data_ptr(), other.data_ptr()); },
+      [&](const func_impl<detail::any_stored_value_type::large> *) { real_this->d.data = other.d.data; other.d.type_data.clear(); }));
+  }
+};
+/* END any_trait::movable implementation */
+
+/* BEGIN any_trait::comparable implementation */
 template <>
 struct trait_impl<any_trait::comparable> {
   template <detail::any_stored_value_type>
@@ -162,7 +234,7 @@ struct trait_impl<any_trait::comparable> {
     equal_to_signature call_equal_to = nullptr;
 
     template <typename T>
-    constexpr func_impl(tmp::type_t<T>) : call_equal_to (&equal_to<T>)
+    constexpr func_impl(tmp::type_t<T>) : call_equal_to(&equal_to<T>)
     {}
   };
 
@@ -173,8 +245,8 @@ struct trait_impl<any_trait::comparable> {
       auto real_this = static_cast<const RealType *> (this);
       if (!real_this->has_value() || !other.has_value())
         return real_this->has_value() == other.has_value();
-      return real_this->type() == other.type() && real_this->template visit_ftable<func_impl>([&](auto f_table) 
-        { return f_table->call_equal_to (real_this->data_ptr(), other.data_ptr ());  });
+      return real_this->type() == other.type() && real_this->template visit_ftable<func_impl>([&](auto f_table)
+      { return f_table->call_equal_to(real_this->data_ptr(), other.data_ptr());  });
     }
 
     friend bool operator==(const RealType &first, const RealType & second) {
@@ -199,7 +271,9 @@ struct trait_impl<any_trait::comparable> {
     }
   };
 };
+/* END any_trait::comparable implementation */
 
+/* BEGIN any_trait::orderable implementation */
 template <>
 struct trait_impl<any_trait::orderable> {
   template <detail::any_stored_value_type>
@@ -264,7 +338,43 @@ struct trait_impl<any_trait::orderable> {
     }
   };
 };
+/* END any_trait::orderable implementation */
 
+/* BEGIN any_trait::hashable implementation */
+template <>
+struct trait_impl<any_trait::hashable> {
+  template <detail::any_stored_value_type>
+  struct func_impl
+  {
+    using hash_signature = std::size_t(*)(const void *);
+    template <typename T>
+    static std::size_t hash_func(const void *value) {
+      return std::hash<T>()(*static_cast<const T *> (value));
+    }
+
+    hash_signature call_hash = nullptr;
+
+    template <typename T>
+    constexpr func_impl(tmp::type_t<T>) : call_hash(&hash_func<T>)
+    {}
+  };
+
+  template <class RealType>
+  struct any_base {
+    std::size_t hash() const
+    {
+      auto real_this = static_cast<const RealType *> (this);
+      if (!real_this->has_value())
+        return 7927u; // hash for empty any
+      std::size_t res = real_this->template visit_ftable<func_impl>([&](auto f_table) { return f_table->call_hash(real_this->data_ptr());  });
+      hash_combine(res, std::type_index(*real_this->d.type_data.t_info)); // adding type_info hash to original type hash
+      return res;
+    };
+  };
+};
+/* END any_trait::hashable implementation */
+
+/* BEGIN any_trait::callable implementation */
 template <typename Ret, typename... ArgTypes>
 struct trait_impl<any_trait::callable<Ret (ArgTypes...)>> {
   template <detail::any_stored_value_type>
@@ -293,107 +403,10 @@ struct trait_impl<any_trait::callable<Ret (ArgTypes...)>> {
     }
   };
 };
-
-template <>
-struct trait_impl<any_trait::copiable> {
-  template <detail::any_stored_value_type>
-  struct func_impl;
-
-  template <class RealType>
-  struct any_base;
-};
-
-template <>
-struct trait_impl<any_trait::copiable>::func_impl<detail::any_stored_value_type::large>
-{
-  using clone_signature = void *(*)(const void *);
-  clone_signature call_clone;
-  template <typename T>
-  static void *clone(const void *other) {
-    return ::new T(*static_cast<const T *> (other));
-  }
-
-  template<typename T>
-  constexpr func_impl(tmp::type_t<T>) : call_clone (&clone<T>) {}
-};
-
-template <>
-struct trait_impl<any_trait::copiable>::func_impl<detail::any_stored_value_type::small>
-{
-  using copy_signature = void (*)(void *, const void *);
-  copy_signature call_copy;
-
-  template <typename T>
-  static void copy(void *target, const void *source) {
-    new (target) T(*static_cast<const T *> (source));
-  }
-
-  template <typename T>
-  constexpr func_impl(tmp::type_t<T>) : call_copy (&copy<T>) {
-  }
-};
-
-template <class RealType>
-struct trait_impl<any_trait::copiable>::any_base {
-  void clone(const RealType &other) {
-    auto real_this = static_cast<RealType *> (this);
-    real_this->~RealType();
-    real_this->d.type_data = other.d.type_data;
-    if (!real_this->has_value())
-      return;
-
-    real_this->template visit_ftable<func_impl>(sftb::overload(
-      [&](const func_impl<detail::any_stored_value_type::small> *f_table) { f_table->call_copy(real_this->d.small_data, other.d.small_data); },
-      [&](const func_impl<detail::any_stored_value_type::large> *f_table) { real_this->d.data = f_table->call_clone(other.d.data); }));
-  }
-};
-
-template <>
-struct trait_impl<any_trait::movable> {
-  template <detail::any_stored_value_type>
-  struct func_impl;
-
-  template <class RealType>
-  struct any_base;
-};
-
-template <>
-struct trait_impl<any_trait::movable>::func_impl <detail::any_stored_value_type::large>
-{
-  template <typename T>
-  constexpr func_impl(tmp::type_t<T>) {}
-};
-
-template <>
-struct trait_impl<any_trait::movable>::func_impl<detail::any_stored_value_type::small>
-{
-
-  using move_signature = void(*)(void *, void *);
-  template <typename T>
-  static void do_move(void *target, void *source) {
-    new(target) T(std::move(*static_cast<T *> (source)));
-  }
-  template <typename T>
-  constexpr func_impl(tmp::type_t<T>) : call_move (&do_move<T>) {
-  }
-  move_signature call_move = nullptr;
-};
-
-template <class RealType>
-struct trait_impl<any_trait::movable>::any_base {
-  void move_from(RealType &&other) {
-    auto real_this = static_cast<RealType *> (this);
-    real_this->~RealType();
-    real_this->d.type_data = other.d.type_data;
-    real_this->template visit_ftable<func_impl>(sftb::overload(
-      [&](const func_impl<detail::any_stored_value_type::small> *f_table) { f_table->call_move(real_this->data_ptr(), other.data_ptr()); },
-      [&](const func_impl<detail::any_stored_value_type::large> *) { real_this->d.data = other.d.data; other.d.type_data.clear(); }));
-  }
-};
+/* END any_trait::callable implementation */
 
 namespace detail // TODO: move to any related namespace
 {
-  // Should this be amalgamated or separated?
   template <detail::any_stored_value_type value_type, class... Traits>
   struct func_table : trait_impl<Traits>::template func_impl<value_type>... {
 
