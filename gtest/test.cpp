@@ -10,20 +10,20 @@
 TEST(any, all)
 {
   {
-    any_t<any_trait::destructible> v(123);
+    awt::any<> v(123);
     EXPECT_TRUE(v.type() == typeid (int));
-    EXPECT_EQ(123, *any_cast<int> (&v));
-    EXPECT_EQ(nullptr, any_cast<double> (&v));
-    EXPECT_EQ(123, any_cast<int> (v));
-    EXPECT_THROW(any_cast<double> (v), std::bad_cast);
+    EXPECT_EQ(123, *awt::any_cast<int> (&v));
+    EXPECT_EQ(nullptr, awt::any_cast<double> (&v));
+    EXPECT_EQ(123, awt::any_cast<int> (v));
+    EXPECT_THROW(awt::any_cast<double> (v), std::bad_cast);
   }
   {
-    any_t < any_trait::destructible, any_trait::copiable, any_trait::movable> v(123);
-    EXPECT_EQ(123, any_cast<int> (v));
+    awt::any <any_trait::copiable, any_trait::movable> v(123);
+    EXPECT_EQ(123, awt::any_cast<int> (v));
     auto v2 = v;
-    EXPECT_EQ(123, any_cast<int> (v2));
+    EXPECT_EQ(123, awt::any_cast<int> (v2));
     auto v3 = std::move(v);
-    EXPECT_EQ(123, any_cast<int> (v3));
+    EXPECT_EQ(123, awt::any_cast<int> (v3));
     v3 = {};
     EXPECT_FALSE(v3.has_value ());
   }
@@ -33,12 +33,12 @@ TEST(any, all)
     huge_type initial_value;
     initial_value.fill(123);
 
-    any_t < any_trait::destructible, any_trait::copiable, any_trait::movable> v(initial_value);
-    EXPECT_EQ(initial_value, any_cast<huge_type> (v));
+    awt::any<any_trait::copiable, any_trait::movable> v(initial_value);
+    EXPECT_EQ(initial_value, awt::any_cast<huge_type> (v));
     auto v2 = v;
-    EXPECT_EQ(initial_value, any_cast<huge_type> (v2));
+    EXPECT_EQ(initial_value, awt::any_cast<huge_type> (v2));
     auto v3 = std::move(v);
-    EXPECT_EQ(initial_value, any_cast<huge_type> (v3));
+    EXPECT_EQ(initial_value, awt::any_cast<huge_type> (v3));
     v3.reset ();
     EXPECT_FALSE(v3.has_value());
     v2 = v3;
@@ -47,7 +47,7 @@ TEST(any, all)
     EXPECT_FALSE(v.has_value());
   }
   {
-    using any = any_t <any_trait::destructible, any_trait::callable<int(int, int)>>;
+    using any = awt::any<any_trait::callable<int(int, int)>>;
     any v(std::plus<int> {});
     EXPECT_EQ (17, v (12, 5));
     v = std::minus<int> {};
@@ -56,7 +56,7 @@ TEST(any, all)
     EXPECT_THROW(p(12, 5), std::bad_function_call);
   }
   {
-    using any = any_t <any_trait::destructible, any_trait::comparable, any_trait::copiable>;
+    using any = awt::any <any_trait::comparable, any_trait::copiable>;
     any v(13);
     auto y = v;
     EXPECT_EQ(y, v);
@@ -73,14 +73,14 @@ TEST(any, all)
     EXPECT_EQ(y ,empty);
   }
   {
-    using any = any_t<any_trait::destructible, any_trait::orderable, any_trait::movable, any_trait::copiable> ;
+    using any = awt::any<any_trait::orderable, any_trait::movable, any_trait::copiable> ;
     std::vector<any> v;
     v.emplace_back(25);
     v.emplace_back(-15);
     v.emplace_back(3);
     std::sort(v.begin(), v.end());
-    EXPECT_EQ(25, any_cast<int> (v.back()));
-    EXPECT_EQ(-15, any_cast<int> (v.front()));
+    EXPECT_EQ(25, awt::any_cast<int> (v.back()));
+    EXPECT_EQ(-15, awt::any_cast<int> (v.front()));
     std::map<any, int> m;
     m[13] = 27;
     m[std::string ("acdcd")] = 34;
@@ -92,7 +92,7 @@ TEST(any, all)
     EXPECT_FALSE(any{} > any{});
   }
   {
-    using any = any_t<any_trait::destructible, any_trait::movable, any_trait::copiable, any_trait::hashable, any_trait::comparable>;
+    using any = awt::any<any_trait::movable, any_trait::copiable, any_trait::hashable, any_trait::comparable>;
     std::unordered_set<any> vv;
     vv.insert(17);
     vv.insert(13);
