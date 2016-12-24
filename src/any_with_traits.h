@@ -22,8 +22,6 @@ namespace tmp
   struct one_of : static_or<std::is_same<Needle, Haystack>::value...> {};
   template <typename T>
   struct type_t { using type = T; };
-  template <typename T1, typename T2>
-  using first_type = T1;
 }
 
 template <class T>
@@ -529,7 +527,7 @@ private:
 namespace std
 {
   template <class... Traits>
-  struct hash<tmp::first_type<any_t<Traits...>, decltype (std::declval<any_t<Traits...>>().hash())>>
+  struct hash<any_t<Traits...>>
   {
   private:
     using wrapped_type = any_t<Traits...>;
