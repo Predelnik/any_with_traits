@@ -111,7 +111,10 @@ template <class RealType>
 struct trait_impl<any_trait::destructible>::any_base {
   ~any_base() {
     auto real_this = static_cast<RealType *> (this);
-    real_this->template visit_ftable<func_impl>([&](auto f_table) { if (f_table) f_table->call_dtor(real_this->data_ptr());  });
+    if (!real_this->has_value ())
+      return;
+    real_this->template visit_ftable<func_impl>([&](auto f_table) { f_table->call_dtor(real_this->data_ptr());  });
+    real_this->d.type_data.t_info = nullptr;
   }
 };
 
@@ -138,6 +141,8 @@ struct trait_impl<any_trait::hashable> {
     std::size_t hash() const
     {
       auto real_this = static_cast<const RealType *> (this);
+      if (!real_this->has_value())
+        return 7927u; // hash for empty any
       std::size_t res = real_this->template visit_ftable<func_impl>([&](auto f_table) { return f_table->call_hash(real_this->data_ptr());  }); // TODO: check empty any
       hash_combine(res, std::type_index(*real_this->d.type_data.t_info)); // adding type_info hash to original type hash
       return res;
@@ -168,6 +173,8 @@ struct trait_impl<any_trait::comparable> {
 
     bool operator==(const RealType &other) const {
       auto real_this = static_cast<const RealType *> (this);
+      if (!real_this->has_value() || !other.has_value())
+        return real_this->has_value() == other.has_value();
       // TODO: check equality of empty anys
       return real_this->type() == other.type() && real_this->template visit_ftable<func_impl>([&](auto f_table) 
         { return f_table->call_equal_to (real_this->data_ptr(), other.data_ptr ());  });
@@ -182,7 +189,8 @@ struct trait_impl<any_trait::comparable> {
     }
 
     bool operator!=(const RealType &other) const {
-      return !(*this == other);
+      auto real_this = static_cast<const RealType *> (this);
+      return !(*real_this == other);
     }
 
     friend bool operator!=(const RealType &first, forbid_implicit_casts<const RealType &> second) {
@@ -217,6 +225,8 @@ struct trait_impl<any_trait::orderable> {
 
     bool operator<(const RealType &other) const {
       auto real_this = static_cast<const RealType *> (this);
+      if (!real_this->has_value() || !other.has_value())
+        return real_this->has_value() < other.has_value();
       if (real_this->type() != other.type())
         return std::type_index(real_this->type()) < std::type_index(other.type());
 
@@ -228,21 +238,27 @@ struct trait_impl<any_trait::orderable> {
     friend bool operator<(const RealType &first, forbid_implicit_casts<const RealType &> second) {
       return first.operator<(second);
     }
-    bool operator>(const RealType &other) const { return other < *this; }
+    bool operator>(const RealType &other) const { 
+      auto real_this = static_cast<const RealType *> (this);
+      return other.operator< (*real_this); }
     friend bool operator>(const RealType &first, const RealType & second) {
       return first.operator>(second);
     }
     friend bool operator>(const RealType &first, forbid_implicit_casts<const RealType &> second) {
       return first.operator>(second);
     }
-    bool operator>=(const RealType &other) const { return !(*this < other); }
+    bool operator>=(const RealType &other) const {
+      auto real_this = static_cast<const RealType *> (this);
+      return !(*real_this < other); }
     friend bool operator>=(const RealType &first, const RealType & second) {
       return first.operator>=(second);
     }
     friend bool operator>=(const RealType &first, forbid_implicit_casts<const RealType &> second) {
       return first.operator>=(second);
     }
-    bool operator<=(const RealType &other) const { return !(*this > other); }
+    bool operator<=(const RealType &other) const { 
+      auto real_this = static_cast<const RealType *> (this);
+      return !(*real_this > other); }
     friend bool operator<=(const RealType &first, const RealType & second) {
       return first.operator<=(second);
     }
@@ -274,6 +290,8 @@ struct trait_impl<any_trait::callable<Ret (ArgTypes...)>> {
   struct any_base {
     Ret operator ()(ArgTypes&&... args) const {
       auto real_this = static_cast<const RealType *> (this);
+      if (!real_this->has_value ())
+        throw std::bad_function_call{};
       return real_this->template visit_ftable<func_impl>([&](auto f_table) { return f_table->call_call(real_this->data_ptr(), std::forward<ArgTypes>(args)...);  });
     }
   };
@@ -324,6 +342,9 @@ struct trait_impl<any_trait::copiable>::any_base {
     auto real_this = static_cast<RealType *> (this);
     real_this->~RealType();
     real_this->d.type_data = other.d.type_data;
+    if (!real_this->has_value())
+      return;
+
     real_this->template visit_ftable<func_impl>(sftb::overload(
       [&](const func_impl<detail::any_stored_value_type::small> *f_table) { f_table->call_copy(real_this->d.small_data, other.d.small_data); },
       [&](const func_impl<detail::any_stored_value_type::large> *f_table) { real_this->d.data = f_table->call_clone(other.d.data); }));
@@ -408,6 +429,7 @@ public:
   template <typename Type, std::enable_if_t<!std::is_same<std::decay_t<Type>, self>::value, int> = 0>
   self &operator=(Type &&value) {
     using decayed_type = std::decay_t<Type>;
+    static_assert (!std::is_base_of<decayed_type, self>::value, "Possible error in traits implementation");
     d.type_data.t_info = &typeid (decayed_type);
     using t = detail::get_any_stored_value_type<decayed_type>;
     d.type_data.stored_value_type = t::value;
@@ -435,6 +457,8 @@ public:
   any_t(self &&other) { static_assert (is_movable, "class move construction is prohibited due to lack of movable trait");  this->move_from(std::move(other)); }
   self &operator=(self &&other) { static_assert (is_movable, "class move assignment is prohibited due to lack of movable trait"); this->move_from(std::move(other)); return *this; }
   const type_info &type() const { return *d.type_data.t_info; }
+  bool has_value() const { return d.type_data.t_info; }
+  void reset() { this->~self(); }
 
 private:
   template <typename Type>
