@@ -480,14 +480,14 @@ namespace awt
     constexpr static bool is_copiable = detail::tmp::one_of<any_trait::copiable, Traits...>::value;
     constexpr static bool is_movable = detail::tmp::one_of<any_trait::movable, Traits...>::value;
   public:
-    any_t() {}
+    any_t() noexcept {}
     template <typename Type, std::enable_if_t<!std::is_same<std::decay_t<Type>, self>::value, int> = 0>
-    any_t(Type &&value) {
+    any_t(Type &&value) noexcept {
       *this = std::forward<Type>(value);
     }
 
     template <typename Type, std::enable_if_t<!std::is_same<std::decay_t<Type>, self>::value, int> = 0>
-    self &operator=(Type &&value) {
+    self &operator=(Type &&value) noexcept {
       using decayed_type = std::decay_t<Type>;
       static_assert (!std::is_base_of<decayed_type, self>::value, "Possible error in traits implementation");
       d.type_data.t_info = &typeid (decayed_type);
@@ -498,7 +498,7 @@ namespace awt
     }
 
     template <typename Type>
-    void dispatch_and_fill(std::integral_constant<any_stored_value_type, any_stored_value_type::small> c, Type &&value) {
+    void dispatch_and_fill(std::integral_constant<any_stored_value_type, any_stored_value_type::small> c, Type &&value) noexcept  {
       using decayed_type = std::decay_t<Type>;
       d.type_data.small_f_table = &detail::func_table_instance<decayed_type, any_stored_value_type::small, Traits...>::value;
       new (d.small_data) decayed_type(std::forward<Type>(value));
@@ -514,8 +514,8 @@ namespace awt
 
     any_t(const self &other) { static_assert (is_copiable, "class copy construction is prohibited due to lack of copiable trait");  this->clone(other); }
     self &operator=(const self &other) { static_assert (is_copiable, "class copy assignment is prohibited due to lack of copiable trait"); this->clone(other); return *this; }
-    any_t(self &&other) { static_assert (is_movable, "class move construction is prohibited due to lack of movable trait");  this->move_from(std::move(other)); }
-    self &operator=(self &&other) { static_assert (is_movable, "class move assignment is prohibited due to lack of movable trait"); this->move_from(std::move(other)); return *this; }
+    any_t(self &&other) noexcept { static_assert (is_movable, "class move construction is prohibited due to lack of movable trait");  this->move_from(std::move(other)); }
+    self &operator=(self &&other) noexcept { static_assert (is_movable, "class move assignment is prohibited due to lack of movable trait"); this->move_from(std::move(other)); return *this; }
     const std::type_info &type() const { return *d.type_data.t_info; }
     bool has_value() const { return d.type_data.t_info; }
     void reset() { this->~self(); }
@@ -542,7 +542,7 @@ namespace awt
     }
 
     template <class VisitorType>
-    auto visit_ftable(const VisitorType &visitor) const
+    auto visit_ftable(const VisitorType &visitor) const noexcept
     {
       switch (d.type_data.stored_value_type)
       {
@@ -553,7 +553,7 @@ namespace awt
         return visitor(d.type_data.large_f_table);
         break;
       }
-      throw 0; // Shoud not be called
+      abort();
     }
 
   private:
