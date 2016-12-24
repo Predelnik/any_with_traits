@@ -143,7 +143,7 @@ struct trait_impl<any_trait::hashable> {
       auto real_this = static_cast<const RealType *> (this);
       if (!real_this->has_value())
         return 7927u; // hash for empty any
-      std::size_t res = real_this->template visit_ftable<func_impl>([&](auto f_table) { return f_table->call_hash(real_this->data_ptr());  }); // TODO: check empty any
+      std::size_t res = real_this->template visit_ftable<func_impl>([&](auto f_table) { return f_table->call_hash(real_this->data_ptr());  });
       hash_combine(res, std::type_index(*real_this->d.type_data.t_info)); // adding type_info hash to original type hash
       return res;
     };
@@ -175,7 +175,6 @@ struct trait_impl<any_trait::comparable> {
       auto real_this = static_cast<const RealType *> (this);
       if (!real_this->has_value() || !other.has_value())
         return real_this->has_value() == other.has_value();
-      // TODO: check equality of empty anys
       return real_this->type() == other.type() && real_this->template visit_ftable<func_impl>([&](auto f_table) 
         { return f_table->call_equal_to (real_this->data_ptr(), other.data_ptr ());  });
     }
@@ -420,7 +419,6 @@ class any_t : public trait_impl<Traits>::template any_base<any_t<Traits...>>... 
   constexpr static bool is_movable = tmp::one_of<any_trait::movable, Traits...>::value;
 public:
   any_t() {}
-  // TODO: check that type isn't any itself
   template <typename Type, std::enable_if_t<!std::is_same<std::decay_t<Type>, self>::value, int> = 0>
   any_t(Type &&value) {
     *this = std::forward<Type>(value);
