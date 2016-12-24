@@ -2,6 +2,7 @@
 
 #include <functional>
 #include <type_traits>
+#include <typeinfo>
 #include <typeindex>
 
 namespace any_trait {
@@ -511,7 +512,7 @@ namespace awt
     self &operator=(const self &other) { static_assert (is_copiable, "class copy assignment is prohibited due to lack of copiable trait"); this->clone(other); return *this; }
     any_t(self &&other) { static_assert (is_movable, "class move construction is prohibited due to lack of movable trait");  this->move_from(std::move(other)); }
     self &operator=(self &&other) { static_assert (is_movable, "class move assignment is prohibited due to lack of movable trait"); this->move_from(std::move(other)); return *this; }
-    const type_info &type() const { return *d.type_data.t_info; }
+    const std::type_info &type() const { return *d.type_data.t_info; }
     bool has_value() const { return d.type_data.t_info; }
     void reset() { this->~self(); }
 
@@ -577,10 +578,10 @@ namespace awt
 
     template <class T>
     friend struct trait_impl;
-    template <typename Type, typename... Traits>
-    friend Type *awt::any_cast(awt::any<Traits...> *value);
-    template <typename Type, typename... Traits>
-    friend const Type *awt::any_cast(const awt::any<Traits...> *value);
+    template <typename Type, typename... Traits1>
+    friend Type *awt::any_cast(awt::any<Traits1...> *value);
+    template <typename Type, typename... Traits1>
+    friend const Type *awt::any_cast(const awt::any<Traits1...> *value);
   };
   } // namespace detail
 

@@ -6,6 +6,8 @@
 #include <memory>
 #include <functional>
 #include <unordered_set>
+#include <algorithm>
+
 
 TEST(any, all)
 {

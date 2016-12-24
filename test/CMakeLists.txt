@@ -10,7 +10,10 @@ set (gtest_files
 
 include_directories (../src)
 
+set (CMAKE_CXX_STANDARD 14)
+find_package (Threads)
 add_executable (any_with_traits_test ${gtest_files})
+target_link_libraries (any_with_traits_test ${CMAKE_THREAD_LIBS_INIT})
 
 set (GENERIC_OUTPUT_DIR, ${BIN_DIR})
 add_definitions ("-D_UNICODE -DUNICODE -D_WIN32_WINNT=0x501 -DWINVER=0x501")
