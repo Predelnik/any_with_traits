@@ -427,8 +427,8 @@ namespace awt
   /* BEGIN any_trait::callable implementation */
   template <typename Ret, typename... ArgTypes>
   struct trait_impl<any_trait::callable<Ret(ArgTypes...)>> {
-    template <any_stored_value_type>
-    struct func_impl
+
+    struct func_impl_base
     {
       using signature = Ret(*)(const void *, ArgTypes...);
       template <typename T>
@@ -437,19 +437,23 @@ namespace awt
       }
       signature call_call = nullptr;
       template <typename T>
-      constexpr func_impl(detail::type_t<T>)
+      constexpr func_impl_base(detail::type_t<T>)
       {
         call_call = &func<T>;
       }
     };
 
+    template <any_stored_value_type>
+    struct func_impl : func_impl_base { template <typename T> constexpr func_impl(detail::type_t<T> t): func_impl_base(t) {} };
+
     template <class RealType>
     struct any_base {
-      Ret operator ()(ArgTypes&&... args) const {
+      template <class... UserArgTypes>
+      auto operator ()(UserArgTypes&&... args) const -> decltype (std::declval<typename func_impl_base::signature>() (nullptr, std::forward<UserArgTypes>(args)...)) {
         auto real_this = static_cast<const RealType *> (this);
         if (!real_this->has_value())
           throw std::bad_function_call{};
-        return real_this->visit_ftable([&](auto f_table) { return f_table->call_call(real_this->data_ptr(), std::forward<ArgTypes>(args)...);  });
+        return real_this->visit_ftable([&](const func_impl_base *f_table) { return f_table->call_call(real_this->data_ptr(), std::forward<UserArgTypes>(args)...);  });
       }
     };
   };
