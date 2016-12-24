@@ -103,4 +103,14 @@ TEST(any, all)
     EXPECT_EQ(0, vv.count(std::string("27")));
     EXPECT_EQ(1, vv.count({}));
   }
+  {
+    auto value = std::make_unique<int> (42);
+    auto f = [a = std::move(value)](int b, int c){ return *a + b + c; };
+    //std::function<int(int, int)> v0(std::move (f)); // -- not compiling
+    awt::unique_function<int(int, int)> v (std::move (f));
+    EXPECT_EQ(72, v(13, 17));
+    auto v2 = std::move(v);
+    EXPECT_EQ(62, v2(10, 10));
+    EXPECT_THROW(v(5, 5), std::bad_function_call);
+  }
 }

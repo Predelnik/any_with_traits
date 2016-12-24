@@ -25,6 +25,10 @@ namespace awt
   template <class... Traits>
   using any = detail::any_t <any_trait::destructible, Traits...>;
   using normal_any = any<any_trait::copiable, any_trait::movable>;
+  template <typename Signature>
+  using function = any<any_trait::copiable, any_trait::movable, any_trait::callable<Signature>>;
+  template <typename Signature>
+  using unique_function = any<any_trait::movable, any_trait::callable<Signature>>;
 
   template <typename Type, typename... Traits>
   Type *any_cast(any<Traits...> *value);
@@ -207,7 +211,6 @@ namespace awt
   template <>
   struct trait_impl<any_trait::movable>::func_impl<any_stored_value_type::small>
   {
-
     using move_signature = void(*)(void *, void *);
     template <typename T>
     static void do_move(void *target, void *source) {
@@ -227,7 +230,8 @@ namespace awt
       real_this->d.type_data = other.d.type_data;
       real_this->visit_ftable(sftb::overload(
         [&](const func_impl<any_stored_value_type::small> *f_table) { f_table->call_move(real_this->data_ptr(), other.data_ptr()); },
-        [&](const func_impl<any_stored_value_type::large> *) { real_this->d.data = other.d.data; other.d.type_data.clear(); }));
+        [&](const func_impl<any_stored_value_type::large> *) { real_this->d.data = other.d.data; }));
+      other.d.type_data.clear();
     }
   };
   /* END any_trait::movable implementation */
