@@ -98,7 +98,7 @@ TEST(any, all)
     vv.insert(13);
     vv.insert(19);
     vv.insert(std::string("13"));
-    vv.insert({}); // empty any is fine for hashing
+    vv.insert(any{}); // empty any is fine for hashing
     EXPECT_EQ(1, vv.count (std::string ("13")));
     EXPECT_EQ(0, vv.count(std::string("27")));
     EXPECT_EQ(1, vv.count({}));
