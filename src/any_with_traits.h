@@ -112,7 +112,7 @@ struct trait_impl<any_trait::destructible>::any_base {
     auto real_this = static_cast<RealType *> (this);
     if (!real_this->has_value())
       return;
-    real_this->template visit_ftable<func_impl>([&](auto f_table) { f_table->call_dtor(real_this->data_ptr());  });
+    real_this->visit_ftable([&](auto f_table) { f_table->call_dtor(real_this->data_ptr());  });
     real_this->d.type_data.t_info = nullptr;
   }
 };
@@ -167,7 +167,7 @@ struct trait_impl<any_trait::copiable>::any_base {
     if (!real_this->has_value())
       return;
 
-    real_this->template visit_ftable<func_impl>(sftb::overload(
+    real_this->visit_ftable(sftb::overload(
       [&](const func_impl<detail::any_stored_value_type::small> *f_table) { f_table->call_copy(real_this->d.small_data, other.d.small_data); },
       [&](const func_impl<detail::any_stored_value_type::large> *f_table) { real_this->d.data = f_table->call_clone(other.d.data); }));
   }
@@ -212,7 +212,7 @@ struct trait_impl<any_trait::movable>::any_base {
     auto real_this = static_cast<RealType *> (this);
     real_this->~RealType();
     real_this->d.type_data = other.d.type_data;
-    real_this->template visit_ftable<func_impl>(sftb::overload(
+    real_this->visit_ftable(sftb::overload(
       [&](const func_impl<detail::any_stored_value_type::small> *f_table) { f_table->call_move(real_this->data_ptr(), other.data_ptr()); },
       [&](const func_impl<detail::any_stored_value_type::large> *) { real_this->d.data = other.d.data; other.d.type_data.clear(); }));
   }
@@ -245,7 +245,7 @@ struct trait_impl<any_trait::comparable> {
       auto real_this = static_cast<const RealType *> (this);
       if (!real_this->has_value() || !other.has_value())
         return real_this->has_value() == other.has_value();
-      return real_this->type() == other.type() && real_this->template visit_ftable<func_impl>([&](auto f_table)
+      return real_this->type() == other.type() && real_this->visit_ftable([&](auto f_table)
       { return f_table->call_equal_to(real_this->data_ptr(), other.data_ptr());  });
     }
 
@@ -301,7 +301,7 @@ struct trait_impl<any_trait::orderable> {
       if (real_this->type() != other.type())
         return std::type_index(real_this->type()) < std::type_index(other.type());
 
-      return real_this->template visit_ftable<func_impl>([&](auto f_table)
+      return real_this->visit_ftable([&](auto f_table)
         { return f_table->call_less_than(real_this->data_ptr(), other.data_ptr());  });
     }
 
@@ -366,7 +366,7 @@ struct trait_impl<any_trait::hashable> {
       auto real_this = static_cast<const RealType *> (this);
       if (!real_this->has_value())
         return 7927u; // hash for empty any
-      std::size_t res = real_this->template visit_ftable<func_impl>([&](auto f_table) { return f_table->call_hash(real_this->data_ptr());  });
+      std::size_t res = real_this->visit_ftable([&](auto f_table) { return f_table->call_hash(real_this->data_ptr());  });
       hash_combine(res, std::type_index(*real_this->d.type_data.t_info)); // adding type_info hash to original type hash
       return res;
     };
@@ -399,7 +399,7 @@ struct trait_impl<any_trait::callable<Ret (ArgTypes...)>> {
       auto real_this = static_cast<const RealType *> (this);
       if (!real_this->has_value ())
         throw std::bad_function_call{};
-      return real_this->template visit_ftable<func_impl>([&](auto f_table) { return f_table->call_call(real_this->data_ptr(), std::forward<ArgTypes>(args)...);  });
+      return real_this->visit_ftable([&](auto f_table) { return f_table->call_call(real_this->data_ptr(), std::forward<ArgTypes>(args)...);  });
     }
   };
 };
@@ -490,16 +490,16 @@ private:
     return (const_cast<self *> (this))->data_ptr();
   }
 
-  template <template <detail::any_stored_value_type> class BaseType, class VisitorType>
+  template <class VisitorType>
   auto visit_ftable(const VisitorType &visitor) const
   {
     switch (d.type_data.stored_value_type)
     {
     case detail::any_stored_value_type::small:
-      return visitor(static_cast<const BaseType<detail::any_stored_value_type::small> *> (d.type_data.small_f_table));
+      return visitor(d.type_data.small_f_table);
       break;
     case detail::any_stored_value_type::large:
-      return visitor(static_cast<const BaseType<detail::any_stored_value_type::large> *> (d.type_data.large_f_table));
+      return visitor(d.type_data.large_f_table);
       break;
     }
     throw 0; // Shoud not be called
