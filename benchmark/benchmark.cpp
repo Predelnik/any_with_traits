@@ -3,7 +3,7 @@
 #include "nonius.h++"
 #include "any_with_traits.h"
 
-__declspec(noinline) int f(int x) { return std::abs(x); }
+int f(int x) { return std::abs(x); }
 
 NONIUS_BENCHMARK("awt::function", [](nonius::chronometer meter) {
   awt::function<int(int)> p = &f;

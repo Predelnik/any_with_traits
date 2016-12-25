@@ -10,7 +10,7 @@ include_directories (../src)
 
 set (CMAKE_CXX_STANDARD 14)
 find_package (Threads)
-find_package ( Boost 1.60)
+find_package (Boost)
 if (${Boost_FOUND})
 	include_directories ( ${Boost_INCLUDE_DIR} )
 	add_executable (any_with_traits_benchmark ${gtest_files})
