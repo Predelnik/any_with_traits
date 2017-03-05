@@ -46,6 +46,17 @@ struct static_or
                   bool_pack<(second_bool<Values, false>::value)...>> {};
 template <class Needle, class... Haystack>
 struct one_of : static_or<std::is_same<Needle, Haystack>::value...> {};
+
+template <typename FirstArgType, typename Signature> struct add_first_argument;
+
+template <typename FirstArgType, typename Ret, typename... Args>
+struct add_first_argument<FirstArgType, Ret(Args...)> {
+  using type = Ret(FirstArgType, Args...);
+};
+
+template <typename FirstArgType, typename Signature>
+using add_first_argument_t =
+    typename add_first_argument<FirstArgType, Signature>::type;
 }
 
 template <typename... Args> class overload_class;
@@ -98,9 +109,10 @@ enum class any_stored_value_type : char {
   large,
   small,
 };
-constexpr auto any_small_size = 24; // possibly it's cooler to allow to specify
-                                    // it differently for different types of
-                                    // anys
+// possibly it's cooler to allow to specify it differently for different types
+// of anys
+constexpr auto any_small_size = 24;
+
 struct any_all_types {};
 
 template <typename T>
@@ -456,6 +468,67 @@ struct trait_impl<any_trait::callable<Ret(ArgTypes...)>> {
   };
 };
 /* END any_trait::callable implementation */
+
+/* BEGIN call internal function trait macro */
+#define AWT_DEFINE_MEMBER_FUNCTION_CALL_TRAIT(TRAIT_NAME, FUNC_NAME,           \
+                                              SIGNATURE)                       \
+                                                                               \
+  namespace any_trait {                                                        \
+  \
+struct TRAIT_NAME{};                                                           \
+  \
+}                                                                         \
+                                                                               \
+  namespace awt {                                                              \
+  namespace detail {                                                           \
+                                                                               \
+  template <>                                                                  \
+  \
+struct trait_impl<any_trait::TRAIT_NAME> {                                     \
+    struct func_impl_base {                                                    \
+      using signature =                                                        \
+          std::add_pointer_t<tmp::add_first_argument_t<void *, SIGNATURE>>;    \
+      template <typename T, typename Signature> struct helper;                 \
+      template <typename T, typename Ret, typename... ArgTypes>                \
+      struct helper<T, Ret(ArgTypes...)> {                                     \
+        static Ret func(void *object, ArgTypes... args) {                      \
+          return (*static_cast<T *>(object)).FUNC_NAME(args...);               \
+        }                                                                      \
+      };                                                                       \
+      signature func_call = nullptr;                                           \
+      template <typename T>                                                    \
+      constexpr func_impl_base(detail::type_t<T>)                              \
+          : func_call(&helper<T, SIGNATURE>::func) {}                          \
+    };                                                                         \
+                                                                               \
+    template <any_stored_value_type> struct func_impl : func_impl_base {       \
+      template <typename T>                                                    \
+      constexpr func_impl(detail::type_t<T> t) : func_impl_base(t) {}          \
+    };                                                                         \
+    template <typename RealType, typename Signature> struct any_base_helper;   \
+    template <typename RealType, typename Ret, typename... ArgTypes>           \
+    struct any_base_helper<RealType, Ret(ArgTypes...)> {                       \
+      auto FUNC_NAME(ArgTypes... args)                                         \
+          -> decltype(std::declval<typename func_impl_base::signature>()(      \
+              nullptr, std::forward<ArgTypes>(args)...)) {                     \
+        auto real_this = static_cast<RealType *>(this);                        \
+        if (!real_this->has_value())                                           \
+          throw std::bad_function_call{};                                      \
+        return real_this->visit_ftable([&](const func_impl_base *f_table) {    \
+          return f_table->func_call(real_this->data_ptr(),                     \
+                                    std::forward<ArgTypes>(args)...);          \
+        });                                                                    \
+      }                                                                        \
+    };                                                                         \
+    template <class RealType>                                                  \
+    struct any_base : any_base_helper<RealType, SIGNATURE> {};                 \
+  };                                                                           \
+  \
+}                                                                         \
+  \
+}
+
+/* END call internal function trait macro */
 
 template <any_stored_value_type value_type, class... Traits>
 struct func_table : trait_impl<Traits>::template func_impl<value_type>... {

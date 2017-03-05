@@ -118,3 +118,20 @@ TEST(any, all) {
     EXPECT_THROW(v(5, 5), std::bad_function_call);
   }
 }
+
+struct c1 {
+  int example_function (int a, int b) { return a + b; }
+};
+
+struct c2 { int example_function (int x) { return x; }};
+
+AWT_DEFINE_MEMBER_FUNCTION_CALL_TRAIT (has_example_function, example_function, int (int, int));
+TEST (any, custom_traits) {
+  awt::any<any_trait::has_example_function> v;
+  EXPECT_THROW(v.example_function(5, 5), std::bad_function_call);
+  v = c1 {};
+  EXPECT_EQ (10, v.example_function(3, 7));
+  // v = c2 {}; fails to compile
+  // v = 25; fails to compile
+}
+
