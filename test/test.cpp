@@ -132,10 +132,21 @@ int free_function(c1) { return 42; }
 int free_function(c2) { return 53; }
 }
 
+namespace secret {
+int free_function(const c1 &) { return 55; }
+int free_function(const c2 &) { return 777; }
+}
+
 AWT_DEFINE_MEMBER_FUNCTION_CALL_TRAIT(has_example_function, example_function,
                                       int(int, int));
 
-AWT_DEFINE_FREE_FUNCTION_CALL_TRAIT(has_free_function, free_function, int());
+AWT_DEFINE_FREE_FUNCTION_CALL_TRAIT(has_free_function, free_function,
+                                    call_free_function_on_me, int());
+
+AWT_DEFINE_FREE_FUNCTION_CALL_TRAIT(has_secret_free_function,
+                                    secret::free_function,
+                                    call_secret_free_function_on_me, int(),
+                                    const);
 
 TEST(any, custom_traits) {
   {
@@ -148,10 +159,18 @@ TEST(any, custom_traits) {
   }
   {
     awt::any<any_trait::has_free_function> v;
-    EXPECT_THROW (v.free_function(), std::bad_function_call);
-    v = c1 {};
-    EXPECT_EQ(42, v.free_function());
-    v = c2 {};
-    EXPECT_EQ(53, v.free_function());
+    EXPECT_THROW(v.call_free_function_on_me(), std::bad_function_call);
+    v = c1{};
+    EXPECT_EQ(42, v.call_free_function_on_me());
+    v = c2{};
+    EXPECT_EQ(53, v.call_free_function_on_me());
+  }
+  {
+    awt::any<any_trait::has_secret_free_function> v;
+    EXPECT_THROW(v.call_secret_free_function_on_me(), std::bad_function_call);
+    v = c1{};
+    EXPECT_EQ(55, v.call_secret_free_function_on_me());
+    v = c2{};
+    EXPECT_EQ(777, v.call_secret_free_function_on_me());
   }
 }

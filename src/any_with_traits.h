@@ -471,10 +471,10 @@ struct trait_impl<any_trait::callable<Ret(ArgTypes...)>> {
 
 /* BEGIN call internal function trait macro */
 
-#define AWT_DETAIL_MEMBER_FUNCTION_CALL(FUNC_NAME)                             \
-  (*static_cast<T *>(object)).FUNC_NAME(args...)
-#define AWT_DETAIL_FREE_FUNCTION_CALL(FUNC_NAME)                               \
-  FUNC_NAME(*static_cast<T *>(object), args...)
+#define AWT_DETAIL_MEMBER_FUNCTION_CALL(FUNC_NAME, ...)                        \
+  (*static_cast<__VA_ARGS__ T *>(object)).FUNC_NAME(args...)
+#define AWT_DETAIL_FREE_FUNCTION_CALL(FUNC_NAME, ...)                          \
+  FUNC_NAME(*static_cast<__VA_ARGS__ T *>(object), args...)
 #define AWT_DETAIL_DEFINE_FUNCTION_CALL_TRAIT(TRAIT_NAME, FUNC_NAME,           \
                                               SIGNATURE, FUNC_CALL)            \
                                                                                \
@@ -532,14 +532,15 @@ struct trait_impl<any_trait::TRAIT_NAME> {                                     \
 }
 
 #define AWT_DEFINE_MEMBER_FUNCTION_CALL_TRAIT(TRAIT_NAME, FUNC_NAME,           \
-                                              SIGNATURE)                       \
+                                              SIGNATURE, ...)                  \
   AWT_DETAIL_DEFINE_FUNCTION_CALL_TRAIT(                                       \
       TRAIT_NAME, FUNC_NAME, SIGNATURE,                                        \
-      AWT_DETAIL_MEMBER_FUNCTION_CALL(FUNC_NAME))
-#define AWT_DEFINE_FREE_FUNCTION_CALL_TRAIT(TRAIT_NAME, FUNC_NAME, SIGNATURE)  \
+      AWT_DETAIL_MEMBER_FUNCTION_CALL(FUNC_NAME, __VA_ARGS__))
+#define AWT_DEFINE_FREE_FUNCTION_CALL_TRAIT(TRAIT_NAME, FREE_FUNC_NAME,        \
+                                            ANY_FUNC_NAME, SIGNATURE, ...)     \
   AWT_DETAIL_DEFINE_FUNCTION_CALL_TRAIT(                                       \
-      TRAIT_NAME, FUNC_NAME, SIGNATURE,                                        \
-      AWT_DETAIL_FREE_FUNCTION_CALL(FUNC_NAME))
+      TRAIT_NAME, ANY_FUNC_NAME, SIGNATURE,                                    \
+      AWT_DETAIL_FREE_FUNCTION_CALL(FREE_FUNC_NAME, __VA_ARGS__))
 
 /* END call internal function trait macro */
 
