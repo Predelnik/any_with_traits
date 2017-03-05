@@ -437,10 +437,7 @@ namespace awt
       }
       signature call_call = nullptr;
       template <typename T>
-      constexpr func_impl_base(detail::type_t<T>)
-      {
-        call_call = &func<T>;
-      }
+      constexpr func_impl_base(detail::type_t<T>) : call_call (&func<T>) {}
     };
 
     template <any_stored_value_type>
@@ -517,7 +514,7 @@ namespace awt
     any_t(self &&other) noexcept { static_assert (is_movable, "class move construction is prohibited due to lack of movable trait");  this->move_from(std::move(other)); }
     self &operator=(self &&other) noexcept { static_assert (is_movable, "class move assignment is prohibited due to lack of movable trait"); this->move_from(std::move(other)); return *this; }
     const std::type_info &type() const { return *d.type_data.t_info; }
-    bool has_value() const { return d.type_data.t_info; }
+    bool has_value() const { return d.type_data.t_info != nullptr; }
     void reset() { this->~self(); }
 
   private:
