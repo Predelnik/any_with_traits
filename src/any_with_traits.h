@@ -470,8 +470,13 @@ struct trait_impl<any_trait::callable<Ret(ArgTypes...)>> {
 /* END any_trait::callable implementation */
 
 /* BEGIN call internal function trait macro */
-#define AWT_DEFINE_MEMBER_FUNCTION_CALL_TRAIT(TRAIT_NAME, FUNC_NAME,           \
-                                              SIGNATURE)                       \
+
+#define AWT_DETAIL_MEMBER_FUNCTION_CALL(FUNC_NAME)                             \
+  (*static_cast<T *>(object)).FUNC_NAME(args...)
+#define AWT_DETAIL_FREE_FUNCTION_CALL(FUNC_NAME)                               \
+  FUNC_NAME(*static_cast<T *>(object), args...)
+#define AWT_DETAIL_DEFINE_FUNCTION_CALL_TRAIT(TRAIT_NAME, FUNC_NAME,           \
+                                              SIGNATURE, FUNC_CALL)            \
                                                                                \
   namespace any_trait {                                                        \
   \
@@ -491,9 +496,7 @@ struct trait_impl<any_trait::TRAIT_NAME> {                                     \
       template <typename T, typename Signature> struct helper;                 \
       template <typename T, typename Ret, typename... ArgTypes>                \
       struct helper<T, Ret(ArgTypes...)> {                                     \
-        static Ret func(void *object, ArgTypes... args) {                      \
-          return (*static_cast<T *>(object)).FUNC_NAME(args...);               \
-        }                                                                      \
+        static Ret func(void *object, ArgTypes... args) { return FUNC_CALL; }  \
       };                                                                       \
       signature func_call = nullptr;                                           \
       template <typename T>                                                    \
@@ -527,6 +530,16 @@ struct trait_impl<any_trait::TRAIT_NAME> {                                     \
 }                                                                         \
   \
 }
+
+#define AWT_DEFINE_MEMBER_FUNCTION_CALL_TRAIT(TRAIT_NAME, FUNC_NAME,           \
+                                              SIGNATURE)                       \
+  AWT_DETAIL_DEFINE_FUNCTION_CALL_TRAIT(                                       \
+      TRAIT_NAME, FUNC_NAME, SIGNATURE,                                        \
+      AWT_DETAIL_MEMBER_FUNCTION_CALL(FUNC_NAME))
+#define AWT_DEFINE_FREE_FUNCTION_CALL_TRAIT(TRAIT_NAME, FUNC_NAME, SIGNATURE)  \
+  AWT_DETAIL_DEFINE_FUNCTION_CALL_TRAIT(                                       \
+      TRAIT_NAME, FUNC_NAME, SIGNATURE,                                        \
+      AWT_DETAIL_FREE_FUNCTION_CALL(FUNC_NAME))
 
 /* END call internal function trait macro */
 

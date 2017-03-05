@@ -120,18 +120,38 @@ TEST(any, all) {
 }
 
 struct c1 {
-  int example_function (int a, int b) { return a + b; }
+  int example_function(int a, int b) { return a + b; }
 };
 
-struct c2 { int example_function (int x) { return x; }};
+struct c2 {
+  int example_function(int x) { return x; }
+};
 
-AWT_DEFINE_MEMBER_FUNCTION_CALL_TRAIT (has_example_function, example_function, int (int, int));
-TEST (any, custom_traits) {
-  awt::any<any_trait::has_example_function> v;
-  EXPECT_THROW(v.example_function(5, 5), std::bad_function_call);
-  v = c1 {};
-  EXPECT_EQ (10, v.example_function(3, 7));
-  // v = c2 {}; fails to compile
-  // v = 25; fails to compile
+namespace {
+int free_function(c1) { return 42; }
+int free_function(c2) { return 53; }
 }
 
+AWT_DEFINE_MEMBER_FUNCTION_CALL_TRAIT(has_example_function, example_function,
+                                      int(int, int));
+
+AWT_DEFINE_FREE_FUNCTION_CALL_TRAIT(has_free_function, free_function, int());
+
+TEST(any, custom_traits) {
+  {
+    awt::any<any_trait::has_example_function> v;
+    EXPECT_THROW(v.example_function(5, 5), std::bad_function_call);
+    v = c1{};
+    EXPECT_EQ(10, v.example_function(3, 7));
+    // v = c2 {}; fails to compile
+    // v = 25; fails to compile
+  }
+  {
+    awt::any<any_trait::has_free_function> v;
+    EXPECT_THROW (v.free_function(), std::bad_function_call);
+    v = c1 {};
+    EXPECT_EQ(42, v.free_function());
+    v = c2 {};
+    EXPECT_EQ(53, v.free_function());
+  }
+}
