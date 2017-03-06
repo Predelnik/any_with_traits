@@ -10,6 +10,15 @@
 
 TEST(any, all) {
   {
+    // check for memory leaks
+    awt::any<> v(std::vector<int>(1000));
+    v = std::vector<int>(1500);
+    v.emplace<std::vector<int>>(17, 17);
+    EXPECT_EQ(std::vector<int>(17, 17), awt::any_cast<std::vector<int>>(v));
+    v.emplace<std::vector<int>>({3, 5, 6});
+    EXPECT_EQ(std::vector<int>({3, 5, 6}), awt::any_cast<std::vector<int>>(v));
+  }
+  {
     awt::any<> v(123);
     EXPECT_TRUE(v.type() == typeid(int));
     EXPECT_EQ(123, *awt::any_cast<int>(&v));
@@ -116,6 +125,17 @@ TEST(any, all) {
     auto v2 = std::move(v);
     EXPECT_EQ(62, v2(10, 10));
     EXPECT_THROW(v(5, 5), std::bad_function_call);
+  }
+  {
+    awt::any<> v1 = 17;
+    awt::any<> v2 = 24;
+    using std::swap;
+    v1.swap(v2);
+    EXPECT_EQ(24, awt::any_cast<int>(v1));
+    EXPECT_EQ(17, awt::any_cast<int>(v2));
+    swap(v2, v1);
+    EXPECT_EQ(17, awt::any_cast<int>(v1));
+    EXPECT_EQ(24, awt::any_cast<int>(v2));
   }
 }
 

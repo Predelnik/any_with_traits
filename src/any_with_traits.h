@@ -57,6 +57,8 @@ struct add_first_argument<FirstArgType, Ret(Args...)> {
 template <typename FirstArgType, typename Signature>
 using add_first_argument_t =
     typename add_first_argument<FirstArgType, Signature>::type;
+
+template <typename...> using void_t = void;
 }
 
 template <typename... Args> class overload_class;
@@ -580,6 +582,19 @@ public:
     *this = std::forward<Type>(value);
   }
 
+  template <class ValueType, class... Args>
+  auto emplace(Args &&... args)
+      -> tmp::void_t<std::is_constructible<std::decay_t<ValueType>, Args...>> {
+    *this = std::decay_t<ValueType>(std::forward<Args>(args)...);
+  }
+
+  template <class ValueType, class U, class... Args>
+  auto emplace(std::initializer_list<U> il, Args &&... args)
+      -> tmp::void_t<std::is_constructible<std::decay_t<ValueType>,
+                                           std::initializer_list<U>, Args...>> {
+    *this = std::decay_t<ValueType>(il, std::forward<Args>(args)...);
+  }
+
   template <
       typename Type,
       std::enable_if_t<!std::is_same<std::decay_t<Type>, self>::value, int> = 0>
@@ -587,6 +602,7 @@ public:
     using decayed_type = std::decay_t<Type>;
     static_assert(!std::is_base_of<decayed_type, self>::value,
                   "Possible error in traits implementation");
+    self::~any_t();
     d.type_data.t_info = &typeid(decayed_type);
     using t = detail::get_any_stored_value_type<decayed_type>;
     d.type_data.stored_value_type = t::value;
@@ -647,6 +663,11 @@ public:
   const std::type_info &type() const { return *d.type_data.t_info; }
   bool has_value() const { return d.type_data.t_info != nullptr; }
   void reset() { this->~self(); }
+  void swap(self &other) noexcept {
+    using std::swap;
+    swap(d, other.d);
+  }
+  friend void swap(self &lhs, self &rhs) noexcept { lhs.swap(rhs); }
 
 private:
   template <typename Type> Type *cast() {
