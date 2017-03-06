@@ -668,9 +668,26 @@ public:
     swap(d, other.d);
   }
   friend void swap(self &lhs, self &rhs) noexcept { lhs.swap(rhs); }
+  template <typename T> T value() const {
+    auto ptr = cast<T>();
+    assert(ptr != nullptr);
+    if (ptr)
+      return *ptr;
+    return {};
+  }
+  template <typename T> T value_or(T default_value) const {
+    auto ptr = cast<T>();
+    if (ptr)
+      return *ptr;
+    return default_value;
+  }
+  bool empty() const { return !has_value(); }
 
 private:
-  template <typename Type> Type *cast() {
+  template <typename Type> Type *cast() const {
+    if (!has_value())
+      return nullptr;
+
     if (*d.type_data.t_info == typeid(std::remove_const_t<Type>))
       return static_cast<Type *>(data_ptr());
 
@@ -687,7 +704,7 @@ private:
     return nullptr;
   }
 
-  const void *data_ptr() const {
+  void *data_ptr() const {
     return (const_cast<self *>(this))->data_ptr();
   }
 

@@ -137,6 +137,16 @@ TEST(any, all) {
     EXPECT_EQ(17, awt::any_cast<int>(v1));
     EXPECT_EQ(24, awt::any_cast<int>(v2));
   }
+
+  {
+    awt::any<> v = 17, v1;
+    EXPECT_EQ (17, v.value<int> ());
+    EXPECT_DEBUG_DEATH (v1.value<int> (), "ptr != nullptr");
+    EXPECT_EQ (17, v.value_or<int> (45));
+    EXPECT_EQ (45, v1.value_or<int> (45));
+    EXPECT_TRUE (v1.empty ());
+    EXPECT_FALSE (v.empty ());
+  }
 }
 
 struct c1 {
