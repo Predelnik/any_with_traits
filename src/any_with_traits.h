@@ -12,6 +12,7 @@ struct movable {};
 struct comparable {};
 struct orderable {};
 struct hashable {};
+struct ostreamable {};
 template <typename Signature> struct callable {};
 };
 
@@ -470,6 +471,43 @@ struct trait_impl<any_trait::callable<Ret(ArgTypes...)>> {
   };
 };
 /* END any_trait::callable implementation */
+
+/* BEGIN any_trait::ostreamable implementation */
+template <>
+struct trait_impl<any_trait::ostreamable> {
+
+  struct func_impl_base {
+    template <typename T>
+    static void func(const void *object, std::ostream &os) {
+      os << *static_cast<const T *>(object);
+    }
+    using signature = void (*)(const void *, std::ostream &os);
+    signature call_insert_to_ostream = nullptr;
+    template <typename T>
+    constexpr func_impl_base(detail::type_t<T>) : call_insert_to_ostream(&func<T>) {}
+  };
+
+  template <any_stored_value_type> struct func_impl : func_impl_base {
+    template <typename T>
+    constexpr func_impl(detail::type_t<T> t) : func_impl_base(t) {}
+  };
+
+  template <class RealType> struct any_base {
+    template <class... UserArgTypes>
+    std::ostream &operator_less_less_impl(std::ostream &os) const {
+      auto real_this = static_cast<const RealType *>(this);
+      if (!real_this->has_value())
+        return os;
+         real_this->visit_ftable([&](const func_impl_base *f_table) {
+         f_table->call_insert_to_ostream(real_this->data_ptr(), os);
+      });
+      return os;
+    }
+
+    friend std::ostream &operator<<(std::ostream &os, const any_base &val) { return val.operator_less_less_impl (os); }
+  };
+};
+/* END any_trait::ostreamable implementation */
 
 /* BEGIN call internal function trait macro */
 

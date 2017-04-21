@@ -7,6 +7,7 @@
 #include <functional>
 #include <unordered_set>
 #include <algorithm>
+#include <sstream>
 
 TEST(any, all) {
   {
@@ -146,6 +147,17 @@ TEST(any, all) {
     EXPECT_EQ (45, v1.value_or<int> (45));
     EXPECT_TRUE (v1.empty ());
     EXPECT_FALSE (v.empty ());
+  }
+  {
+    awt::any<any_trait::ostreamable> v = 23;
+    std::stringstream ss;
+    ss << v;
+    EXPECT_EQ ("23", ss.str ());
+    v = "ASDA";
+    ss = {""};
+    ss.clear ();
+    ss << v;
+    EXPECT_EQ ("ASDA", ss.str ());
   }
 }
 
