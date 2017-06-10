@@ -128,8 +128,8 @@ TEST(any, all) {
     EXPECT_THROW(v(5, 5), std::bad_function_call);
   }
   {
-    awt::any<> v1 = 17;
-    awt::any<> v2 = 24;
+    awt::any<> v1 (17);
+    awt::any<> v2 (24);
     using std::swap;
     v1.swap(v2);
     EXPECT_EQ(24, awt::any_cast<int>(v1));
@@ -140,7 +140,7 @@ TEST(any, all) {
   }
 
   {
-    awt::any<> v = 17, v1;
+    awt::any<> v (17), v1;
     EXPECT_EQ (17, v.value<int> ());
     EXPECT_DEBUG_DEATH (v1.value<int> (), "ptr != nullptr");
     EXPECT_EQ (17, v.value_or<int> (45));
@@ -149,12 +149,12 @@ TEST(any, all) {
     EXPECT_FALSE (v.empty ());
   }
   {
-    awt::any<any_trait::ostreamable> v = 23;
+    awt::any<any_trait::ostreamable> v (23);
     std::stringstream ss;
     ss << v;
     EXPECT_EQ ("23", ss.str ());
     v = "ASDA";
-    ss = {""};
+    ss.str ("");
     ss.clear ();
     ss << v;
     EXPECT_EQ ("ASDA", ss.str ());
